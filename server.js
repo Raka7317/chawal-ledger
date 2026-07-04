@@ -7,6 +7,7 @@ try {
   console.warn('Could not set custom DNS servers:', err.message);
 }
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const Transaction = require('./models/Transaction');
@@ -23,7 +24,7 @@ if (!MONGODB_URI) {
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // serves index.html (your Chawal Ledger frontend)
+app.use(express.static(path.join(__dirname, 'public'))); // serves index.html locally
 
 let dbError = null;
 const dbReady = mongoose
@@ -51,6 +52,11 @@ async function waitForDatabase() {
 }
 
 // ---------- Routes the frontend already calls ----------
+
+// GET / -> serve the frontend on local Node and Vercel
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // GET /api/health -> lets the frontend show database status
 app.get('/api/health', (_req, res) => {
