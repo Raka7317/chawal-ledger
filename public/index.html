@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chawal Ledger — Rice Mill Transactions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F6F1E4;
+    --surface:#FFFFFF;
+    --surface-alt:#EFE6D0;
+    --ink:#2A2117;
+    --ink-soft:#6B5F4C;
+    --gold:#B9860B;
+    --gold-deep:#8F6708;
+    --green:#4B6B3A;
+    --green-deep:#374F2A;
+    --red:#A6402F;
+    --border:#E1D4AE;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(185,134,11,0.07) 1px, transparent 0);
+    background-size:22px 22px;
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    line-height:1.5;
+    padding-bottom:60px;
+  }
+  h1,h2,h3{font-family:'Fraunces', serif; margin:0; color:var(--ink);}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
+
+  header.top{
+    background:linear-gradient(180deg, var(--green-deep), var(--green));
+    color:#F6F1E4;
+    padding:28px 0 34px;
+    border-bottom:6px solid var(--gold);
+    position:relative;
+  }
+  header.top .wrap{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;}
+  .brand{display:flex; align-items:center; gap:14px;}
+  .brand svg{flex-shrink:0;}
+  .brand h1{font-size:30px; font-weight:700; letter-spacing:0.3px;}
+  .brand p{margin:2px 0 0; font-size:13px; color:#DCE7D2; letter-spacing:0.4px; text-transform:uppercase;}
+  .status-pill{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:999px;
+    background:rgba(255,255,255,0.14);
+    border:1px solid rgba(255,255,255,0.35);
+  }
+  .status-pill.err{background:rgba(166,64,47,0.35); border-color:rgba(166,64,47,0.6);}
+  .grain-divider{
+    height:10px;
+    background-image: repeating-linear-gradient(90deg, var(--gold) 0 8px, transparent 8px 16px);
+    opacity:0.55;
+  }
+
+  main{padding-top:28px;}
+  .grid-cards{display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:30px;}
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px 18px 16px;
+    box-shadow:0 1px 0 rgba(42,33,23,0.04);
+  }
+  .card .label{font-size:12px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); font-weight:600;}
+  .card .value{font-family:'Fraunces', serif; font-size:24px; font-weight:600; margin-top:6px; color:var(--ink);}
+  .card .sub{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+
+  section{margin-bottom:34px;}
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;}
+  .section-head h2{font-size:21px;}
+  .section-head .eyebrow{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--gold-deep); font-weight:600; display:block; margin-bottom:2px;}
+
+  .panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:22px;}
+
+  /* Form */
+  .type-toggle{display:flex; gap:0; border:1px solid var(--border); border-radius:7px; overflow:hidden; width:fit-content;}
+  .type-toggle button{
+    border-radius:0; padding:10px 20px; background:var(--surface-alt); color:var(--ink-soft); font-weight:600;
+  }
+  .type-toggle button.active[data-type="sell"]{background:var(--green); color:#fff;}
+  .type-toggle button.active[data-type="buy"]{background:var(--gold); color:#2A2117;}
+
+  #tx-form{display:grid; grid-template-columns:repeat(6, 1fr); gap:12px; align-items:end; margin-top:16px;}
+  .field label{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px;}
+  .field input, .field select{
+    width:100%; padding:10px 11px; border:1px solid var(--border); border-radius:7px;
+    background:var(--surface-alt); font-size:14px; font-family:'IBM Plex Sans',sans-serif; color:var(--ink);
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--gold); outline-offset:1px; background:#fff;}
+  button{
+    font-family:'IBM Plex Sans', sans-serif; font-weight:600; cursor:pointer; border:none; border-radius:7px;
+    padding:11px 18px; font-size:14px; transition:transform .08s ease;
+  }
+  button:active{transform:scale(0.97);}
+  button:disabled{opacity:0.6; cursor:not-allowed;}
+  .btn-primary{background:var(--gold); color:#2A2117;}
+  .btn-primary:hover{background:var(--gold-deep); color:#fff;}
+  .btn-ghost{background:transparent; border:1px solid var(--border); color:var(--ink-soft);}
+  .btn-ghost:hover{border-color:var(--ink-soft); color:var(--ink);}
+  .btn-ghost.active{border-color:var(--gold-deep); color:var(--gold-deep); background:rgba(185,134,11,0.08);}
+  .btn-danger{background:transparent; color:var(--red); border:1px solid rgba(166,64,47,0.35); padding:5px 10px; font-size:12px;}
+  .btn-danger:hover{background:rgba(166,64,47,0.08);}
+  .form-note{grid-column:1/-1; font-size:12px; color:var(--ink-soft); margin-top:-2px;}
+  .form-error{grid-column:1/-1; font-size:13px; color:var(--red); display:none;}
+
+  /* Table */
+  .table-tools{display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; align-items:center;}
+  .table-tools input, .table-tools select{padding:8px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; background:var(--surface-alt);}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  thead th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft);
+    border-bottom:2px solid var(--border); padding:8px 10px; font-weight:600;
+  }
+  tbody td{padding:9px 10px; border-bottom:1px solid var(--border);}
+  tbody tr:hover{background:var(--surface-alt);}
+  .empty-row td{text-align:center; padding:34px 10px; color:var(--ink-soft); font-style:italic;}
+  .tag{font-size:11px; padding:2px 7px; border-radius:5px; background:var(--surface-alt); color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+  .type-badge{font-size:11px; padding:3px 9px; border-radius:999px; font-weight:600; font-family:'IBM Plex Sans',sans-serif;}
+  .type-badge.sell{background:rgba(75,107,58,0.15); color:var(--green-deep);}
+  .type-badge.buy{background:rgba(185,134,11,0.18); color:var(--gold-deep);}
+  .id-cell{color:var(--ink-soft); font-size:11.5px;}
+  .recent-table tbody td{font-size:13px;}
+
+  /* Analytics */
+  .period-tabs{display:flex; gap:8px;}
+  .analytics-grid{display:grid; grid-template-columns:1.1fr 1fr; gap:18px;}
+  .chart-box{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px;}
+  .chart-box h3{font-size:15px; margin-bottom:12px;}
+  .breakdown-table th, .breakdown-table td{font-size:13px;}
+  .stock-low{color:var(--red); font-weight:600;}
+
+  footer{text-align:center; font-size:12px; color:var(--ink-soft); margin-top:40px;}
+  .toast{
+    position:fixed; bottom:20px; right:20px; background:var(--ink); color:#fff; padding:12px 18px;
+    border-radius:8px; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,0.2); z-index:999; display:none;
+  }
+  .toast.err{background:var(--red);}
+  .toast.show{display:block;}
+
+  @media (max-width:1000px){
+    .grid-cards{grid-template-columns:repeat(2,1fr);}
+    #tx-form{grid-template-columns:1fr 1fr;}
+    .analytics-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
+        <rect x="6" y="16" width="34" height="24" rx="3" fill="#B9860B"/>
+        <rect x="6" y="16" width="34" height="6" fill="#8F6708"/>
+        <path d="M23 4C23 4 15 10 15 16C15 19.3137 18.5817 22 23 22C27.4183 22 31 19.3137 31 16C31 10 23 4 23 4Z" fill="#F6F1E4"/>
+        <path d="M23 8C23 8 19 11.5 19 15C19 17 20.7909 18.5 23 18.5" stroke="#8F6708" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1>Chawal Ledger</h1>
+        <p>Rice Mill · Buy/Sell Transactions &amp; Analytics</p>
+      </div>
+    </div>
+    <span class="status-pill" id="status-pill">● Connecting to database…</span>
+  </div>
+</header>
+<div class="grain-divider"></div>
+
+<main class="wrap">
+
+  <div class="grid-cards" id="summary-cards">
+    <div class="card"><div class="label">Today's Sales</div><div class="value mono" id="card-today">₹0</div><div class="sub" id="card-today-sub">0 transactions</div></div>
+    <div class="card"><div class="label">Total Revenue (Sold)</div><div class="value mono" id="card-revenue">₹0</div><div class="sub" id="card-revenue-sub">all time</div></div>
+    <div class="card"><div class="label">Total Purchases (Bought)</div><div class="value mono" id="card-purchases">₹0</div><div class="sub" id="card-purchases-sub">all time</div></div>
+    <div class="card"><div class="label">Current Stock</div><div class="value mono" id="card-stock">0 kg</div><div class="sub" id="card-stock-sub">across all products</div></div>
+    <div class="card"><div class="label">Best Selling Product</div><div class="value mono" id="card-top">—</div><div class="sub" id="card-top-sub">by revenue</div></div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Latest activity</span><h2>Recent Transactions</h2></div>
+    </div>
+    <div class="panel">
+      <table class="recent-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Type</th><th>Party</th><th>Product</th><th>Quantity</th><th>Price</th>
+          </tr>
+        </thead>
+        <tbody id="recent-tbody">
+          <tr class="empty-row"><td colspan="6">Loading recent transactions...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Record a transaction</span><h2>Add Buy / Sell Entry</h2></div>
+      <div class="type-toggle" id="type-toggle">
+        <button type="button" data-type="sell" class="active">Sell</button>
+        <button type="button" data-type="buy">Buy</button>
+      </div>
+    </div>
+    <div class="panel">
+      <form id="tx-form">
+        <div class="field">
+          <label for="f-person" id="f-person-label">Sold To (Customer)</label>
+          <input id="f-person" placeholder="e.g. Ramesh Kumar" required>
+        </div>
+        <div class="field">
+          <label for="f-product">Product</label>
+          <input list="product-list" id="f-product" placeholder="e.g. Sona Masoori Rice" required>
+          <datalist id="product-list"></datalist>
+        </div>
+        <div class="field">
+          <label for="f-price">Price (₹)</label>
+          <input type="number" id="f-price" min="0" step="0.01" placeholder="0.00" required>
+        </div>
+        <div class="field">
+          <label for="f-qty">Quantity</label>
+          <input type="number" id="f-qty" min="0" step="0.01" placeholder="0" required>
+        </div>
+        <div class="field">
+          <label for="f-unit">Unit</label>
+          <select id="f-unit" required>
+            <option value="kg">Kg</option>
+            <option value="quintal">Quintal</option>
+            <option value="gram">Gram</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-date">Date</label>
+          <input type="date" id="f-date" required>
+        </div>
+        <div class="field" style="grid-column: 1 / -1; display:flex; justify-content:flex-end;">
+          <button type="submit" class="btn-primary" id="submit-btn" style="min-width:160px;">Add Sale</button>
+        </div>
+        <div class="form-error" id="form-error"></div>
+        <div class="form-note">Party name, product, price and quantity+unit are mandatory. Quantity is auto-converted to kg for analytics and inventory (1 quintal = 100 kg, 1 gram = 0.001 kg). Every entry gets a unique ID and timestamp automatically.</div>
+      </form>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Ledger</span><h2>All Transactions</h2></div>
+    </div>
+    <div class="panel">
+      <div class="table-tools">
+        <input type="text" id="filter-product" placeholder="Filter by product or party...">
+        <select id="filter-type">
+          <option value="">All types</option>
+          <option value="sell">Sell only</option>
+          <option value="buy">Buy only</option>
+        </select>
+        <select id="filter-sort">
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="price-desc">Highest price</option>
+          <option value="qty-desc">Highest quantity</option>
+        </select>
+        <button class="btn-ghost" id="btn-export">Export CSV</button>
+        <button class="btn-ghost" id="btn-refresh">Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Type</th><th>Party</th><th>Product</th><th>Quantity</th><th>Qty (kg)</th><th>Price</th><th>₹ / kg</th><th>ID</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tx-tbody">
+          <tr class="empty-row"><td colspan="10">Loading transactions…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Stock</span><h2>Inventory — Sold vs Left</h2></div>
+    </div>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th><th>Bought (kg)</th><th>Sold (kg)</th><th>Stock Left (kg)</th><th>Purchase Value</th><th>Sales Value</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-tbody">
+          <tr class="empty-row"><td colspan="6">Loading inventory…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Insights</span><h2>Analytics</h2></div>
+      <div class="period-tabs">
+        <button class="btn-ghost active" data-period="daily">Daily</button>
+        <button class="btn-ghost" data-period="weekly">Weekly</button>
+        <button class="btn-ghost" data-period="monthly">Monthly</button>
+      </div>
+    </div>
+    <div class="analytics-grid">
+      <div class="chart-box">
+        <h3>Buy vs Sell Revenue Over Time</h3>
+        <canvas id="chart-trend" height="220"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Revenue by Product (Sales)</h3>
+        <canvas id="chart-revenue" height="220"></canvas>
+      </div>
+    </div>
+    <div class="chart-box" style="margin-top:18px;">
+      <h3>Product Breakdown</h3>
+      <table class="breakdown-table">
+        <thead><tr><th>Product</th><th>Buys</th><th>Sells</th><th>Bought (kg)</th><th>Sold (kg)</th><th>Sales Revenue</th><th>Avg ₹/kg (sold)</th></tr></thead>
+        <tbody id="breakdown-tbody"><tr class="empty-row"><td colspan="7">No data yet.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>Chawal Ledger — data is stored in MongoDB and shared across everyone using this app.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const UNIT_TO_KG = { kg:1, quintal:100, gram:0.001 };
+
+  let transactions = [];
+  let analytics = null;
+  let currentPeriod = "daily";
+  let currentType = "sell";
+  let trendChart = null, revenueChart = null;
+  const API_BASE = location.protocol === "file:" ? "http://localhost:3000" : "";
+
+  /* ---------- API helpers ---------- */
+  async function api(path, opts){
+    let res;
+    try{
+      res = await fetch(API_BASE + path, opts);
+    }catch(err){
+      throw new Error("Could not reach the server. Start the project with npm start and open http://localhost:3000.");
+    }
+    let data = null;
+    try{ data = await res.json(); }catch(e){ /* no body */ }
+    if(!res.ok){
+      throw new Error((data && data.error) || ("Request failed (" + res.status + ")"));
+    }
+    return data;
+  }
+
+  function showToast(msg, isErr){
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "toast show" + (isErr ? " err" : "");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>{ t.className = "toast"; }, 3500);
+  }
+
+  function setStatus(ok, msg){
+    const pill = document.getElementById("status-pill");
+    pill.textContent = ok ? "● Connected to MongoDB" : ("● " + msg);
+    pill.className = "status-pill" + (ok ? "" : " err");
+  }
+
+  /* ---------- Data loading ---------- */
+  async function loadTransactions(){
+    transactions = await api("/api/transactions");
+  }
+
+  // Compute analytics client-side from the transactions array.
+  // Returns the same shape the rest of the UI expects:
+  //   { summary, inventory, daily, weekly, monthly }
+  function computeAnalytics(){
+    const today = new Date().toISOString().slice(0, 10);
+    const productMap = new Map();
+
+    let totalSellRevenue = 0, totalBuyValue = 0;
+    let totalBoughtKg = 0, totalSoldKg = 0;
+    let todaySellRevenue = 0, todaySellCount = 0;
+    const productRevenue = new Map(); // product -> sell revenue (for top product)
+
+    function bucketKey(dateStr, period){
+      const d = new Date(dateStr);
+      if(period === "daily") return dateStr; // YYYY-MM-DD
+      if(period === "weekly"){
+        // ISO week-start (Monday)
+        const tmp = new Date(d);
+        const day = (tmp.getDay() + 6) % 7; // 0..6 with Mon=0
+        tmp.setDate(tmp.getDate() - day);
+        return tmp.toISOString().slice(0, 10);
+      }
+      // monthly -> YYYY-MM
+      return dateStr.slice(0, 7);
+    }
+
+    const buckets = { daily: new Map(), weekly: new Map(), monthly: new Map() };
+
+    for(const t of transactions){
+      const qtyKg = Number(t.qtyKg) || 0;
+      const price = Number(t.price) || 0;
+
+      // Per-product accumulator
+      let p = productMap.get(t.product);
+      if(!p){
+        p = {
+          product: t.product,
+          boughtKg: 0, soldKg: 0,
+          boughtValue: 0, soldValue: 0,
+          buyCount: 0, sellCount: 0
+        };
+        productMap.set(t.product, p);
+      }
+
+      if(t.type === "sell"){
+        totalSellRevenue += price;
+        totalSoldKg += qtyKg;
+        p.soldKg += qtyKg;
+        p.soldValue += price;
+        p.sellCount += 1;
+        productRevenue.set(t.product, (productRevenue.get(t.product) || 0) + price);
+        if(t.date === today){
+          todaySellRevenue += price;
+          todaySellCount += 1;
+        }
+      } else if(t.type === "buy"){
+        totalBuyValue += price;
+        totalBoughtKg += qtyKg;
+        p.boughtKg += qtyKg;
+        p.boughtValue += price;
+        p.buyCount += 1;
+      }
+
+      // Buckets for trend chart
+      for(const period of ["daily", "weekly", "monthly"]){
+        const key = bucketKey(t.date, period);
+        let b = buckets[period].get(key);
+        if(!b){
+          b = { key, sellRevenue: 0, buyRevenue: 0 };
+          buckets[period].set(key, b);
+        }
+        if(t.type === "sell") b.sellRevenue += price;
+        else if(t.type === "buy") b.buyRevenue += price;
+      }
+    }
+
+    // Inventory rows
+    const inventory = Array.from(productMap.values()).map(p => ({
+      ...p,
+      stockKg: p.boughtKg - p.soldKg
+    })).sort((a, b) => a.product.localeCompare(b.product));
+
+    // Top product by sell revenue
+    let topProduct = null, topProductRevenue = 0;
+    for(const [name, rev] of productRevenue.entries()){
+      if(rev > topProductRevenue){ topProduct = name; topProductRevenue = rev; }
+    }
+
+    // Build sorted bucket arrays
+    function toSorted(m){
+      return Array.from(m.values()).sort((a, b) => a.key.localeCompare(b.key));
+    }
+
+    return {
+      summary: {
+        todaySellRevenue,
+        todaySellCount,
+        totalSellRevenue,
+        totalBuyValue,
+        totalBoughtKg,
+        totalStockKg: totalBoughtKg - totalSoldKg,
+        totalTransactions: transactions.length,
+        productCount: productMap.size,
+        topProduct,
+        topProductRevenue
+      },
+      inventory,
+      daily: toSorted(buckets.daily),
+      weekly: toSorted(buckets.weekly),
+      monthly: toSorted(buckets.monthly)
+    };
+  }
+
+  function loadAnalytics(){
+    analytics = computeAnalytics();
+    return Promise.resolve();
+  }
+
+  async function loadAll(){
+    await loadTransactions();
+    await loadAnalytics();
+  }
+
+  /* ---------- Formatting ---------- */
+  function fmtMoney(n){ return "₹" + Number(n||0).toLocaleString("en-IN", {maximumFractionDigits:2}); }
+  function fmtKg(n){ return Number(n||0).toLocaleString("en-IN", {maximumFractionDigits:2}) + " kg"; }
+  function fmtQty(t){ return Number(t.quantity).toLocaleString("en-IN") + " " + t.unit; }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+
+  /* ---------- Rendering ---------- */
+  function renderAll(){
+    renderProductList();
+    renderRecentTransactions();
+    renderTable();
+    renderSummary();
+    renderInventory();
+    renderAnalytics();
+  }
+
+  function renderProductList(){
+    const dl = document.getElementById("product-list");
+    const names = [...new Set(transactions.map(t=>t.product))];
+    dl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}">`).join("");
+  }
+
+  function renderRecentTransactions(){
+    const tbody = document.getElementById("recent-tbody");
+    const list = [...transactions]
+      .sort((a,b)=>{
+        const aTime = new Date(a.createdAt || a.date).getTime();
+        const bTime = new Date(b.createdAt || b.date).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, 5);
+
+    if(list.length === 0){
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="6">No recent transactions yet.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(t=>`<tr>
+      <td class="mono">${escapeHtml(t.date)}</td>
+      <td><span class="type-badge ${t.type}">${t.type === "sell" ? "Sell" : "Buy"}</span></td>
+      <td>${escapeHtml(t.personName || "â€”")}</td>
+      <td>${escapeHtml(t.product)}</td>
+      <td class="mono">${fmtQty(t)}</td>
+      <td class="mono">${fmtMoney(t.price)}</td>
+    </tr>`).join("");
+  }
+
+  function getFiltered(){
+    const q = document.getElementById("filter-product").value.trim().toLowerCase();
+    const type = document.getElementById("filter-type").value;
+    const sort = document.getElementById("filter-sort").value;
+    let list = transactions.filter(t => {
+      const matchesQ = !q || t.product.toLowerCase().includes(q) || (t.personName||"").toLowerCase().includes(q);
+      const matchesType = !type || t.type === type;
+      return matchesQ && matchesType;
+    });
+    list.sort((a,b)=>{
+      if(sort === "date-desc") return new Date(b.date) - new Date(a.date);
+      if(sort === "date-asc") return new Date(a.date) - new Date(b.date);
+      if(sort === "price-desc") return b.price - a.price;
+      if(sort === "qty-desc") return b.qtyKg - a.qtyKg;
+      return 0;
+    });
+    return list;
+  }
+
+  function renderTable(){
+    const tbody = document.getElementById("tx-tbody");
+    const list = getFiltered();
+    if(list.length === 0){
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="10">No transactions match — try adding an entry or clearing filters.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = list.map(t=>{
+      const perKg = t.qtyKg > 0 ? (t.price / t.qtyKg) : 0;
+      return `<tr>
+        <td class="mono">${escapeHtml(t.date)}</td>
+        <td><span class="type-badge ${t.type}">${t.type === "sell" ? "Sell" : "Buy"}</span></td>
+        <td>${escapeHtml(t.personName || "—")}</td>
+        <td>${escapeHtml(t.product)}</td>
+        <td class="mono">${fmtQty(t)}</td>
+        <td class="mono"><span class="tag">${fmtKg(t.qtyKg)}</span></td>
+        <td class="mono">${fmtMoney(t.price)}</td>
+        <td class="mono">${fmtMoney(perKg)}</td>
+        <td class="mono id-cell">${escapeHtml((t.id||"").slice(-8))}</td>
+        <td><button class="btn-danger" data-id="${t.id}">Delete</button></td>
+      </tr>`;
+    }).join("");
+    tbody.querySelectorAll("button[data-id]").forEach(btn=>{
+      btn.addEventListener("click", onDelete);
+    });
+  }
+
+  function renderSummary(){
+    if(!analytics) return;
+    const s = analytics.summary;
+    document.getElementById("card-today").textContent = fmtMoney(s.todaySellRevenue);
+    document.getElementById("card-today-sub").textContent = s.todaySellCount + " sale" + (s.todaySellCount===1?"":"s") + " today";
+
+    document.getElementById("card-revenue").textContent = fmtMoney(s.totalSellRevenue);
+    document.getElementById("card-revenue-sub").textContent = s.totalTransactions + " total transactions";
+
+    document.getElementById("card-purchases").textContent = fmtMoney(s.totalBuyValue);
+    document.getElementById("card-purchases-sub").textContent = fmtKg(s.totalBoughtKg) + " bought";
+
+    document.getElementById("card-stock").textContent = fmtKg(s.totalStockKg);
+    document.getElementById("card-stock-sub").textContent = "across " + s.productCount + " products";
+
+    document.getElementById("card-top").textContent = s.topProduct || "—";
+    document.getElementById("card-top-sub").textContent = s.topProduct ? fmtMoney(s.topProductRevenue) + " earned" : "by revenue";
+  }
+
+  function renderInventory(){
+    if(!analytics) return;
+    const tbody = document.getElementById("inventory-tbody");
+    const rows = analytics.inventory;
+    if(!rows || rows.length === 0){
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="6">No inventory data yet — add a buy or sell entry.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(p=>{
+      const low = p.stockKg <= 0;
+      return `<tr>
+        <td>${escapeHtml(p.product)}</td>
+        <td class="mono">${fmtKg(p.boughtKg)}</td>
+        <td class="mono">${fmtKg(p.soldKg)}</td>
+        <td class="mono ${low ? "stock-low" : ""}">${fmtKg(p.stockKg)}</td>
+        <td class="mono">${fmtMoney(p.boughtValue)}</td>
+        <td class="mono">${fmtMoney(p.soldValue)}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function renderAnalytics(){
+    if(!analytics) return;
+
+    // Breakdown table (always uses full totals, not period-filtered)
+    const tbody = document.getElementById("breakdown-tbody");
+    const rows = analytics.inventory;
+    if(!rows || rows.length === 0){
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No data yet.</td></tr>`;
+    } else {
+      tbody.innerHTML = rows.map(p=>{
+        const avgPerKg = p.soldKg > 0 ? p.soldValue / p.soldKg : 0;
+        return `<tr>
+          <td>${escapeHtml(p.product)}</td>
+          <td class="mono">${p.buyCount}</td>
+          <td class="mono">${p.sellCount}</td>
+          <td class="mono">${fmtKg(p.boughtKg)}</td>
+          <td class="mono">${fmtKg(p.soldKg)}</td>
+          <td class="mono">${fmtMoney(p.soldValue)}</td>
+          <td class="mono">${fmtMoney(avgPerKg)}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    // Revenue by product chart (sales only)
+    const revCtx = document.getElementById("chart-revenue");
+    const palette = ["#B9860B","#4B6B3A","#A6402F","#6B5F4C","#8F6708","#374F2A","#C99A3B","#7C5A3A"];
+    const names = rows.map(p=>p.product);
+    if(revenueChart) revenueChart.destroy();
+    revenueChart = new Chart(revCtx, {
+      type: "bar",
+      data: {
+        labels: names,
+        datasets: [{
+          label: "Sales Revenue (₹)",
+          data: rows.map(p=>p.soldValue),
+          backgroundColor: names.map((_,i)=>palette[i % palette.length]),
+          borderRadius: 5
+        }]
+      },
+      options: {
+        responsive:true,
+        plugins:{ legend:{ display:false } },
+        scales:{ y:{ beginAtZero:true, ticks:{ font:{ family:"IBM Plex Mono" } } }, x:{ ticks:{ font:{ family:"IBM Plex Sans" } } } }
+      }
+    });
+
+    // Trend chart (buy vs sell) for the selected period
+    const periodData = analytics[currentPeriod] || [];
+    const trendCtx = document.getElementById("chart-trend");
+    if(trendChart) trendChart.destroy();
+    trendChart = new Chart(trendCtx, {
+      type: "line",
+      data: {
+        labels: periodData.map(d=>d.key),
+        datasets: [
+          {
+            label: "Sell Revenue (₹)",
+            data: periodData.map(d=>d.sellRevenue),
+            borderColor: "#4B6B3A",
+            backgroundColor: "rgba(75,107,58,0.12)",
+            fill:true, tension:0.25, pointRadius:3, pointBackgroundColor:"#4B6B3A"
+          },
+          {
+            label: "Buy Value (₹)",
+            data: periodData.map(d=>d.buyRevenue),
+            borderColor: "#B9860B",
+            backgroundColor: "rgba(185,134,11,0.10)",
+            fill:true, tension:0.25, pointRadius:3, pointBackgroundColor:"#B9860B"
+          }
+        ]
+      },
+      options: {
+        responsive:true,
+        plugins:{ legend:{ display:true, labels:{ font:{ family:"IBM Plex Sans" } } } },
+        scales:{ y:{ beginAtZero:true, ticks:{ font:{ family:"IBM Plex Mono" } } }, x:{ ticks:{ font:{ family:"IBM Plex Sans" } } } }
+      }
+    });
+  }
+
+  /* ---------- Event handlers ---------- */
+  function setType(type){
+    currentType = type;
+    document.querySelectorAll("#type-toggle button").forEach(b=>{
+      b.classList.toggle("active", b.getAttribute("data-type") === type);
+    });
+    const label = document.getElementById("f-person-label");
+    const input = document.getElementById("f-person");
+    const submitBtn = document.getElementById("submit-btn");
+    if(type === "sell"){
+      label.textContent = "Sold To (Customer)";
+      input.placeholder = "e.g. Ramesh Kumar";
+      submitBtn.textContent = "Add Sale";
+    } else {
+      label.textContent = "Bought From (Supplier)";
+      input.placeholder = "e.g. Krishna Traders";
+      submitBtn.textContent = "Add Purchase";
+    }
+  }
+
+  function showFormError(msg){
+    const el = document.getElementById("form-error");
+    if(msg){ el.textContent = msg; el.style.display = "block"; }
+    else { el.textContent = ""; el.style.display = "none"; }
+  }
+
+  async function onSubmit(e){
+    e.preventDefault();
+    showFormError("");
+    const personName = document.getElementById("f-person").value.trim();
+    const product = document.getElementById("f-product").value.trim();
+    const price = parseFloat(document.getElementById("f-price").value);
+    const quantity = parseFloat(document.getElementById("f-qty").value);
+    const unit = document.getElementById("f-unit").value;
+    const date = document.getElementById("f-date").value;
+
+    if(!personName || !product || !(price >= 0) || !(quantity > 0) || !unit || !date){
+      showFormError("Please fill in party name, product, price, quantity, unit and date.");
+      return;
+    }
+
+    const payload = { type: currentType, personName, product, price, quantity, unit, date };
+    const submitBtn = document.getElementById("submit-btn");
+    submitBtn.disabled = true;
+    const prevText = submitBtn.textContent;
+    submitBtn.textContent = "Saving…";
+    try{
+      await api("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      await loadAll();
+      renderAll();
+      e.target.reset();
+      document.getElementById("f-date").value = new Date().toISOString().slice(0,10);
+      document.getElementById("f-person").focus();
+      showToast((currentType === "sell" ? "Sale" : "Purchase") + " recorded.");
+    }catch(err){
+      showFormError("Could not save: " + err.message);
+    }finally{
+      submitBtn.disabled = false;
+      submitBtn.textContent = prevText;
+    }
+  }
+
+  async function onDelete(e){
+    const id = e.target.getAttribute("data-id");
+    if(!confirm("Delete this transaction? This cannot be undone.")) return;
+    try{
+      await api("/api/transactions/" + id, { method: "DELETE" });
+      await loadAll();
+      renderAll();
+      showToast("Transaction deleted.");
+    }catch(err){
+      showToast("Could not delete: " + err.message, true);
+    }
+  }
+
+  function exportCSV(){
+    const rows = [["ID","Type","Party","Date","Product","Quantity","Unit","Quantity (kg)","Price","Price per kg"]];
+    getFiltered().forEach(t=>{
+      const perKg = t.qtyKg > 0 ? (t.price / t.qtyKg).toFixed(2) : "0";
+      rows.push([t.id, t.type, t.personName, t.date, t.product, t.quantity, t.unit, t.qtyKg.toFixed(3), t.price, perKg]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type:"text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "rice-mill-transactions.csv";
+    a.click();
+  }
+
+  /* ---------- Init ---------- */
+  async function init(){
+    document.getElementById("f-date").value = new Date().toISOString().slice(0,10);
+    setType("sell");
+
+    document.getElementById("tx-form").addEventListener("submit", onSubmit);
+    document.getElementById("filter-product").addEventListener("input", renderTable);
+    document.getElementById("filter-type").addEventListener("change", renderTable);
+    document.getElementById("filter-sort").addEventListener("change", renderTable);
+    document.getElementById("btn-export").addEventListener("click", exportCSV);
+    document.getElementById("btn-refresh").addEventListener("click", async ()=>{
+      try{ await loadAll(); renderAll(); showToast("Refreshed."); }
+      catch(err){ showToast("Refresh failed: " + err.message, true); }
+    });
+
+    document.querySelectorAll("#type-toggle button").forEach(b=>{
+      b.addEventListener("click", ()=> setType(b.getAttribute("data-type")));
+    });
+    document.querySelectorAll(".period-tabs button").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        document.querySelectorAll(".period-tabs button").forEach(x=>x.classList.remove("active"));
+        b.classList.add("active");
+        currentPeriod = b.getAttribute("data-period");
+        renderAnalytics();
+      });
+    });
+
+    try{
+      await loadAll();
+      setStatus(true);
+    }catch(err){
+      setStatus(false, err.message);
+      showToast(err.message, true);
+    }
+    renderAll();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
