@@ -1,11 +1,4 @@
 require('dotenv').config({ path: __dirname + '/.env' });
-// DNS override: fall back to public resolvers so Atlas SRV lookups work on restricted networks
-const dns = require('dns');
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (err) {
-  console.warn('Could not set custom DNS servers:', err.message);
-}
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
@@ -15,7 +8,7 @@ const Transaction = require('./models/Transaction');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
-const DB_WAIT_MS = 15000;
+const DB_WAIT_MS = 10000;
 const IS_VERCEL = Boolean(process.env.VERCEL);
 
 app.use(cors());
@@ -35,7 +28,10 @@ function connectDatabase() {
 
   if (!dbReady) {
     dbReady = mongoose
-      .connect(MONGODB_URI, { serverSelectionTimeoutMS: DB_WAIT_MS })
+      .connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: DB_WAIT_MS,
+        maxPoolSize: 5
+      })
       .then(() => {
         dbError = null;
         console.log('Connected to MongoDB Atlas');
@@ -54,14 +50,7 @@ function connectDatabase() {
 async function waitForDatabase() {
   if (mongoose.connection.readyState === 1) return;
 
-  await Promise.race([
-    connectDatabase().catch(() => undefined),
-    new Promise((resolve) => setTimeout(resolve, DB_WAIT_MS))
-  ]);
-
-  if (mongoose.connection.readyState !== 1) {
-    throw dbError || new Error('Database is still connecting. Please try again in a moment.');
-  }
+  await connectDatabase();
 }
 
 // ---------- Routes the frontend already calls ----------
@@ -102,7 +91,7 @@ app.post('/api/transactions', async (req, res) => {
     const tx = await Transaction.create({ type, personName, product, price, quantity, unit, date });
     res.status(201).json(tx);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(503).json({ error: err.message });
   }
 });
 
