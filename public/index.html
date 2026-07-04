@@ -113,6 +113,11 @@
   .btn-ghost.active{border-color:var(--gold-deep); color:var(--gold-deep); background:rgba(185,134,11,0.08);}
   .btn-danger{background:transparent; color:var(--red); border:1px solid rgba(166,64,47,0.35); padding:5px 10px; font-size:12px;}
   .btn-danger:hover{background:rgba(166,64,47,0.08);}
+  .auth-panel{display:flex; align-items:end; gap:12px; flex-wrap:wrap;}
+  .auth-panel .field{min-width:260px; flex:1;}
+  .auth-panel .auth-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .auth-note{font-size:12px; color:var(--ink-soft); margin-top:10px;}
+  .hidden{display:none !important;}
   .form-note{grid-column:1/-1; font-size:12px; color:var(--ink-soft); margin-top:-2px;}
   .form-error{grid-column:1/-1; font-size:13px; color:var(--red); display:none;}
 
@@ -181,6 +186,9 @@
     .field[style] .btn-primary, #submit-btn{width:100%;}
     .type-toggle{width:100%;}
     .type-toggle button{flex:1;}
+    .auth-panel{display:block;}
+    .auth-panel .field{min-width:0; margin-bottom:10px;}
+    .auth-panel .auth-actions button{width:100%;}
     .table-tools{display:grid; grid-template-columns:1fr; gap:9px;}
     .table-tools input, .table-tools select, .table-tools button{width:100%;}
     th, td{white-space:nowrap;}
@@ -238,14 +246,27 @@
 
   <section>
     <div class="section-head">
-      <div><span class="eyebrow">Record a transaction</span><h2>Add Buy / Sell Entry</h2></div>
-      <div class="type-toggle" id="type-toggle">
+      <div><span class="eyebrow">Admin access</span><h2>Transaction Management</h2></div>
+      <div class="type-toggle hidden" id="type-toggle">
         <button type="button" data-type="sell" class="active">Sell</button>
         <button type="button" data-type="buy">Buy</button>
       </div>
     </div>
     <div class="panel">
-      <form id="tx-form">
+      <div class="auth-panel" id="auth-panel">
+        <div class="field">
+          <label for="admin-password">Admin Password</label>
+          <input type="password" id="admin-password" placeholder="Enter admin password">
+        </div>
+        <div class="auth-actions">
+          <button type="button" class="btn-primary" id="btn-login">Sign In</button>
+          <button type="button" class="btn-ghost hidden" id="btn-logout">Sign Out</button>
+        </div>
+        <div class="form-error" id="auth-error"></div>
+      </div>
+      <div class="auth-note" id="auth-note">Viewers can see analytics and transactions. Admin login is required to add or delete entries.</div>
+
+      <form id="tx-form" class="hidden">
         <div class="field">
           <label for="f-person" id="f-person-label">Sold To (Customer)</label>
           <input id="f-person" placeholder="e.g. Ramesh Kumar" required>
@@ -381,12 +402,20 @@
   let currentType = "sell";
   let trendChart = null, revenueChart = null;
   const API_BASE = location.protocol === "file:" ? "http://localhost:3000" : "";
+  let adminToken = localStorage.getItem("adminToken") || "";
 
   /* ---------- API helpers ---------- */
   async function api(path, opts){
+    const options = { ...(opts || {}) };
+    const headers = new Headers(options.headers || {});
+    if(adminToken && !headers.has("Authorization")){
+      headers.set("Authorization", "Bearer " + adminToken);
+    }
+    options.headers = headers;
+
     let res;
     try{
-      res = await fetch(API_BASE + path, opts);
+      res = await fetch(API_BASE + path, options);
     }catch(err){
       throw new Error("Could not reach the server. Start the project with npm start and open http://localhost:3000.");
     }
@@ -410,6 +439,29 @@
     const pill = document.getElementById("status-pill");
     pill.textContent = ok ? "● Connected to MongoDB" : ("● " + msg);
     pill.className = "status-pill" + (ok ? "" : " err");
+  }
+
+  function isAdmin(){
+    return Boolean(adminToken);
+  }
+
+  function setAuthError(msg){
+    const el = document.getElementById("auth-error");
+    if(msg){ el.textContent = msg; el.style.display = "block"; }
+    else { el.textContent = ""; el.style.display = "none"; }
+  }
+
+  function renderAuthState(){
+    const loggedIn = isAdmin();
+    document.getElementById("tx-form").classList.toggle("hidden", !loggedIn);
+    document.getElementById("type-toggle").classList.toggle("hidden", !loggedIn);
+    document.getElementById("btn-login").classList.toggle("hidden", loggedIn);
+    document.getElementById("btn-logout").classList.toggle("hidden", !loggedIn);
+    document.getElementById("admin-password").disabled = loggedIn;
+    document.getElementById("auth-note").textContent = loggedIn
+      ? "Signed in as admin. You can add and delete transactions."
+      : "Viewers can see analytics and transactions. Admin login is required to add or delete entries.";
+    renderTable();
   }
 
   /* ---------- Data loading ---------- */
@@ -617,6 +669,7 @@
     }
     tbody.innerHTML = list.map(t=>{
       const perKg = t.qtyKg > 0 ? (t.price / t.qtyKg) : 0;
+      const deleteCell = isAdmin() ? `<button class="btn-danger" data-id="${t.id}">Delete</button>` : "";
       return `<tr>
         <td class="mono">${escapeHtml(t.date)}</td>
         <td><span class="type-badge ${t.type}">${t.type === "sell" ? "Sell" : "Buy"}</span></td>
@@ -627,7 +680,7 @@
         <td class="mono">${fmtMoney(t.price)}</td>
         <td class="mono">${fmtMoney(perKg)}</td>
         <td class="mono id-cell">${escapeHtml((t.id||"").slice(-8))}</td>
-        <td><button class="btn-danger" data-id="${t.id}">Delete</button></td>
+        <td>${deleteCell}</td>
       </tr>`;
     }).join("");
     tbody.querySelectorAll("button[data-id]").forEach(btn=>{
@@ -780,9 +833,52 @@
     else { el.textContent = ""; el.style.display = "none"; }
   }
 
+  async function onLogin(){
+    setAuthError("");
+    const passwordInput = document.getElementById("admin-password");
+    const password = passwordInput.value;
+    if(!password){
+      setAuthError("Enter the admin password.");
+      return;
+    }
+
+    const btn = document.getElementById("btn-login");
+    btn.disabled = true;
+    const prevText = btn.textContent;
+    btn.textContent = "Signing in...";
+    try{
+      const data = await api("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password })
+      });
+      adminToken = data.token;
+      localStorage.setItem("adminToken", adminToken);
+      passwordInput.value = "";
+      renderAuthState();
+      showToast("Admin signed in.");
+    }catch(err){
+      setAuthError(err.message);
+    }finally{
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
+
+  function onLogout(){
+    adminToken = "";
+    localStorage.removeItem("adminToken");
+    renderAuthState();
+    showToast("Signed out.");
+  }
+
   async function onSubmit(e){
     e.preventDefault();
     showFormError("");
+    if(!isAdmin()){
+      showFormError("Admin login required to add transactions.");
+      return;
+    }
     const personName = document.getElementById("f-person").value.trim();
     const product = document.getElementById("f-product").value.trim();
     const price = parseFloat(document.getElementById("f-price").value);
@@ -821,6 +917,10 @@
   }
 
   async function onDelete(e){
+    if(!isAdmin()){
+      showToast("Admin login required to delete transactions.", true);
+      return;
+    }
     const id = e.target.getAttribute("data-id");
     if(!confirm("Delete this transaction? This cannot be undone.")) return;
     try{
