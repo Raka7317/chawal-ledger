@@ -16,33 +16,46 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_WAIT_MS = 15000;
-
-if (!MONGODB_URI) {
-  console.error('Missing MONGODB_URI. Copy .env.example to .env and fill in your Atlas connection string.');
-  process.exit(1);
-}
+const IS_VERCEL = Boolean(process.env.VERCEL);
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public'))); // serves index.html locally
 
 let dbError = null;
-const dbReady = mongoose
-  .connect(MONGODB_URI, { serverSelectionTimeoutMS: DB_WAIT_MS })
-  .then(() => {
-    dbError = null;
-    console.log('Connected to MongoDB Atlas');
-  })
-  .catch((err) => {
-    dbError = err;
-    console.error('MongoDB connection error:', err.message);
-  });
+let dbReady = null;
+
+function connectDatabase() {
+  if (mongoose.connection.readyState === 1) return Promise.resolve();
+
+  if (!MONGODB_URI) {
+    dbError = new Error('Missing MONGODB_URI. Add it in Vercel Project Settings > Environment Variables.');
+    return Promise.reject(dbError);
+  }
+
+  if (!dbReady) {
+    dbReady = mongoose
+      .connect(MONGODB_URI, { serverSelectionTimeoutMS: DB_WAIT_MS })
+      .then(() => {
+        dbError = null;
+        console.log('Connected to MongoDB Atlas');
+      })
+      .catch((err) => {
+        dbReady = null;
+        dbError = err;
+        console.error('MongoDB connection error:', err.message);
+        throw err;
+      });
+  }
+
+  return dbReady;
+}
 
 async function waitForDatabase() {
   if (mongoose.connection.readyState === 1) return;
 
   await Promise.race([
-    dbReady,
+    connectDatabase().catch(() => undefined),
     new Promise((resolve) => setTimeout(resolve, DB_WAIT_MS))
   ]);
 
@@ -106,6 +119,10 @@ app.delete('/api/transactions/:id', async (req, res) => {
 
 // ---------- Start the server ----------
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+if (!IS_VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
