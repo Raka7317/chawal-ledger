@@ -957,6 +957,8 @@
     document.getElementById("filter-type").addEventListener("change", renderTable);
     document.getElementById("filter-sort").addEventListener("change", renderTable);
     document.getElementById("btn-export").addEventListener("click", exportCSV);
+    document.getElementById("btn-login").addEventListener("click", onLogin);
+    document.getElementById("btn-logout").addEventListener("click", onLogout);
     document.getElementById("btn-refresh").addEventListener("click", async ()=>{
       try{ await loadAll(); renderAll(); showToast("Refreshed."); }
       catch(err){ showToast("Refresh failed: " + err.message, true); }
